@@ -109,3 +109,29 @@ class TransformerBlock(nn.Module):
         x = x + shortcut
 
         return x
+    
+
+class GPTModel(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.token_embedding = nn.Embedding(config["vocab_size"], config["emb_dim"])
+        self.position_embedding = nn.Embedding(config["context_length"], config["emb_dim"])
+        self.dropout = nn.Dropout(config["drop_rate"])
+        self.transformer_block = nn.Sequential(
+            *[TransformerBlock(config) for _ in range(config["n_layers"])]
+        )
+        self.final_norm = LayerNorm(config["emb_dim"])
+        self.output_head = nn.Linear(
+            config["emb_dim"], config["vocab_size"], bias=False
+        )
+
+    def forward(self, x):
+        batch_size, seq_length = x.shape
+        token_emb = self.token_embedding(x)
+        pos_emb = self.position_embedding(torch.arange(seq_length, device=x.device))
+        x = token_emb + pos_emb
+        x = self.dropout(x)
+        x = self.transformer_block(x)
+        x = self.final_norm(x)
+        logits = self.output_head(x)
+        return logits
